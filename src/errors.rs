@@ -9,4 +9,7 @@ pub enum OperationErrors {
     IntergerUnderflowError,
     CannotIncreaseByZero,
     CannotDecreaseByZero,
+    InputStringIsEmpty,
+    CannotRemoveZeroCharacters,
+    AmountLargerThenString,
 }

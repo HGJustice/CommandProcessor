@@ -16,6 +16,10 @@ impl<T> Operation<T> {
     }
 }
 
+impl Commands<u32> for Operation<u32> {
+
+}
+
 impl Operation<u32> {
     pub fn increment(&mut self, amount: u32) -> Result<(), OperationErrors> {
         if amount == 0 {
@@ -26,7 +30,7 @@ impl Operation<u32> {
         if result.is_none(){
             return Err(OperationErrors::IntegerOverflowError);
         }
-        self.data = result.expect("shoudl incremenet data by amount");
+        self.data = result.expect("should incremenet data by amount");
         Ok(())
     }
 
@@ -44,6 +48,28 @@ impl Operation<u32> {
 
 }
 
-impl Operation<String> {
+impl Commands<String> for Operation<String>{
 
+}
+
+impl Operation<String> {
+    pub fn append(&mut self, input: &str ) -> Result<(), OperationErrors>{
+        if input.len() == 0 as usize {
+            return Err(OperationErrors::InputStringIsEmpty);
+        }
+        self.data.push_str(input);
+        Ok(())
+    } 
+
+    pub fn truncate(&mut self, amount: usize) -> Result<(), OperationErrors> {
+        if amount == 0  {
+            return Err(OperationErrors::CannotRemoveZeroCharacters);
+        }
+        if amount > self.data.len(){
+            return Err(OperationErrors::AmountLargerThenString);
+        }
+        let result = self.data.len() - amount;
+        self.data.truncate(result);
+        Ok(())
+    }
 }

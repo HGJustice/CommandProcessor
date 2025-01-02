@@ -1,3 +1,3 @@
 pub mod types;
 pub mod errors;
-use crate::types::Command;
+use crate::types::Operation;
