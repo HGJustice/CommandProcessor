@@ -1,7 +1,15 @@
+#[derive(Debug)]
 pub enum CommandErrors {
-    ExecuteError,
-    UndoError,
-    RedoError,
+    IntegerOverflowError,
+    IntergerUnderflowError,
+    CannotIncreaseByZero,
+    CannotDecreaseByZero,
+    InputStringIsEmpty,
+    CannotRemoveZeroCharacters,
+    AmountLargerThenString,
+    InvalidOperationTypeOnData,
+    NothingToUndo,
+    NothingToRedo,
 }
 
 pub enum OperationErrors {

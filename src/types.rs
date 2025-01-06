@@ -1,75 +1,158 @@
+use std::process::Command;
 use crate::errors::{CommandErrors, OperationErrors};
 
 pub trait Commands<T>{
-    fn execute(&self, data: &mut T) -> Result<(), CommandErrors>;
-    fn undo(&self, data: &mut T) -> Result<(), CommandErrors>;
-    fn redo(&self, data: &mut T) -> Result<(), CommandErrors>;
+    fn execute(&mut self, operation: Operations) -> Result<(), CommandErrors>;
+    fn undo(&mut self,) -> Result<(), CommandErrors>;
+    fn redo(&mut self,) -> Result<(), CommandErrors>;
 }
 
-pub struct Operation<T> {
-    pub data: T,
+pub enum Operations {
+    Increment(u32),
+    Decrement(u32),
+    Append(String),
+    Truncate(usize),
 }
 
-impl<T> Operation<T> {
-    pub fn new(data: T) -> Operation<T>{
-        Operation { data }
-    }
-}
-
-impl Commands<u32> for Operation<u32> {
-
-}
-
-impl Operation<u32> {
-    pub fn increment(&mut self, amount: u32) -> Result<(), OperationErrors> {
+impl Operations {
+    fn increase(value: &mut u32, amount: u32) -> Result<u32, CommandErrors>{
         if amount == 0 {
-            return Err(OperationErrors::CannotIncreaseByZero);
+            return Err(CommandErrors::CannotIncreaseByZero);
         }
-
-        let result = self.data.checked_add(amount);
+        let result = value.checked_add(amount);
         if result.is_none(){
-            return Err(OperationErrors::IntegerOverflowError);
+            return Err(CommandErrors::IntegerOverflowError);
         }
-        self.data = result.expect("should incremenet data by amount");
-        Ok(())
+        Ok(result.expect("should increase the value by amount"))
     }
 
-    pub fn decrement(&mut self, amount: u32) -> Result<(), OperationErrors>{
+    fn decrease(value: &mut u32, amount: u32) -> Result<u32, CommandErrors>{
         if amount == 0 {
-            return Err(OperationErrors::CannotDecreaseByZero);
+            return Err(CommandErrors::CannotDecreaseByZero);
         }
-        let result = self.data.checked_sub(amount);
+        let result = value.checked_sub(amount);
         if result.is_none(){
-            return Err(OperationErrors::IntergerUnderflowError);
+            return Err(CommandErrors::IntergerUnderflowError);
         }
-        self.data = result.expect("should decrement data by amount");
-        Ok(())
+        Ok(result.expect("should decrease the value by amount"))
     }
 
-}
-
-impl Commands<String> for Operation<String>{
-
-}
-
-impl Operation<String> {
-    pub fn append(&mut self, input: &str ) -> Result<(), OperationErrors>{
-        if input.len() == 0 as usize {
+    fn append(value: &mut String, input: &str) -> Result<String, OperationErrors>{
+        if input.is_empty() {
             return Err(OperationErrors::InputStringIsEmpty);
         }
-        self.data.push_str(input);
-        Ok(())
-    } 
+        value.push_str(input);
+        Ok(value.to_string())
+    }
 
-    pub fn truncate(&mut self, amount: usize) -> Result<(), OperationErrors> {
+    fn cut(value: &mut String, amount: usize) -> Result<String,OperationErrors>{
         if amount == 0  {
             return Err(OperationErrors::CannotRemoveZeroCharacters);
         }
-        if amount > self.data.len(){
+        if amount > value.len(){
             return Err(OperationErrors::AmountLargerThenString);
         }
-        let result = self.data.len() - amount;
-        self.data.truncate(result);
-        Ok(())
+     
+        value.truncate(value.len() - amount);
+        Ok(value.to_string())
+    }
+
+    
+}
+
+pub struct CommandProcessor<T> {
+    commands: Vec<Operations>,
+    current_position: usize,
+    data: T
+}
+
+impl <T> CommandProcessor<T> {
+    pub fn new(data: T) -> CommandProcessor<T>{
+        CommandProcessor{
+            commands: Vec::new(),
+            current_position: 0,
+            data
+        }
+    }
+}
+
+impl Commands<u32> for CommandProcessor<u32> {
+    fn execute(&mut self, operation: Operations) -> Result<(), CommandErrors> {
+
+        if self.current_position < self.commands.len(){
+            self.commands.truncate(self.current_position);
+        }
+
+        match operation {
+            Operations::Increment(amount) => {
+                let result = Operations::increase(&mut self.data, amount)?;
+                self.data = result;
+                self.commands.push(operation);
+                self.current_position += 1;
+                Ok(())
+            },
+            Operations::Decrement(amount ) => {
+                let result = Operations::decrease(&mut self.data, amount)?;
+                self.data = result;
+                self.commands.push(operation);
+                self.current_position += 1;
+                Ok(())
+            },
+            _ => {
+                return Err(CommandErrors::InvalidOperationTypeOnData);
+            }
+        }
+    }
+    fn undo(&mut self,) -> Result<(), CommandErrors> {
+            if self.current_position == 0 {
+                return Err(CommandErrors::NothingToUndo);
+            }
+            let last_operation = &self.commands[self.current_position - 1];
+            match last_operation {
+                Operations::Increment(amount) => {
+                    let result = Operations::decrease(&mut self.data, *amount)?;
+                    self.data = result;
+                    self.current_position -= 1;
+                    Ok(())
+                },
+                Operations::Decrement(amount) => {
+                    let result = Operations::increase(&mut self.data, *amount)?;
+                    self.data = result;
+                    self.current_position -= 1;
+                    Ok(())
+                },
+                _ => {
+                    Err(CommandErrors::InvalidOperationTypeOnData)
+                }
+            }
+        }
+    fn redo(&mut self,) -> Result<(), CommandErrors> {
+        if self.current_position == 0  {
+            return Err(CommandErrors::NothingToRedo)
+        }
+        let last_operation = &self.commands[self.current_position];
+        match last_operation {
+            Operations::Increment(amount) => {
+                let result = Operations::increase(&mut self.data, *amount)?;
+                self.data = result;
+                self.current_position += 1;
+                Ok(())
+            },
+            Operations::Decrement(amount) => {
+                let result = Operations::decrease(&mut self.data, *amount)?;
+                self.data = result;
+                self.current_position += 1;
+                Ok(())
+            }
+            _ => {
+                return Err(CommandErrors::InvalidOperationTypeOnData);
+            }
+        }
+    }
+}
+
+impl Commands<String> for CommandProcessor<String> {
+    fn execute(&mut self, operation: Operations) -> Result<(), CommandErrors> {
+        
     }
 }
