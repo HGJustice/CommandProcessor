@@ -11,7 +11,7 @@ pub enum Operations {
     Increment(u32),
     Decrement(u32),
     Append(String),
-    Truncate(usize),
+    Truncate(usize, String),
 }
 
 impl Operations {
@@ -37,24 +37,24 @@ impl Operations {
         Ok(result.expect("should decrease the value by amount"))
     }
 
-    fn append(value: &mut String, input: &str) -> Result<String, OperationErrors>{
+    fn append(value: &mut String, input: &str) -> Result<String, CommandErrors>{
         if input.is_empty() {
-            return Err(OperationErrors::InputStringIsEmpty);
+            return Err(CommandErrors::InputStringIsEmpty);
         }
         value.push_str(input);
         Ok(value.to_string())
     }
 
-    fn cut(value: &mut String, amount: usize) -> Result<String,OperationErrors>{
+    fn cut(value: &mut String, amount: usize) -> Result<(String,String),CommandErrors>{
         if amount == 0  {
-            return Err(OperationErrors::CannotRemoveZeroCharacters);
+            return Err(CommandErrors::CannotRemoveZeroCharacters);
         }
         if amount > value.len(){
-            return Err(OperationErrors::AmountLargerThenString);
+            return Err(CommandErrors::AmountLargerThenString);
         }
-     
+        let removed = value[(value.len() - amount)..].to_string();
         value.truncate(value.len() - amount);
-        Ok(value.to_string())
+        Ok((value.to_string(), removed))
     }
 
     
@@ -104,7 +104,7 @@ impl Commands<u32> for CommandProcessor<u32> {
         }
     }
     fn undo(&mut self,) -> Result<(), CommandErrors> {
-            if self.current_position == 0 {
+            if self.current_position == 0 as usize {
                 return Err(CommandErrors::NothingToUndo);
             }
             let last_operation = &self.commands[self.current_position - 1];
@@ -127,9 +127,10 @@ impl Commands<u32> for CommandProcessor<u32> {
             }
         }
     fn redo(&mut self,) -> Result<(), CommandErrors> {
-        if self.current_position == 0  {
-            return Err(CommandErrors::NothingToRedo)
+        if self.current_position >= self.commands.len() {
+            return Err(CommandErrors::NothingToRedo);
         }
+      
         let last_operation = &self.commands[self.current_position];
         match last_operation {
             Operations::Increment(amount) => {
@@ -153,6 +154,71 @@ impl Commands<u32> for CommandProcessor<u32> {
 
 impl Commands<String> for CommandProcessor<String> {
     fn execute(&mut self, operation: Operations) -> Result<(), CommandErrors> {
-        
+        if self.current_position < self.commands.len(){
+            self.commands.truncate(self.current_position);
+        }
+
+        match operation { 
+            Operations::Append(ref word) => {
+                let result = Operations::append(&mut self.data, &word)?;
+                self.data = result;
+                self.commands.push(operation);
+                self.current_position += 1;
+                Ok(())
+            },
+            Operations::Truncate(amount, _) => {
+                let (result, removed_text) = Operations::cut(&mut self.data, amount)?;
+                self.data = result;
+                self.commands.push(Operations::Truncate(amount, removed_text));
+                self.current_position += 1;
+                Ok(())
+            },
+            _ => return Err(CommandErrors::InvalidOperationTypeOnData)
+            }
+        }
+        fn undo(&mut self,) -> Result<(), CommandErrors> {
+            if self.current_position == 0 as usize {
+                return Err(CommandErrors::NothingToUndo)
+            }
+            let last_operation = &self.commands[self.current_position - 1];
+            match last_operation  {
+                Operations::Append(word) => {
+                    let (result, _) = Operations::cut(&mut self.data, word.len())?;
+                    self.data = result;
+                    self.current_position -= 1;
+                    Ok(())
+                },
+                Operations::Truncate(_, removed_text) => {
+                    let result = Operations::append(&mut self.data, &removed_text)?;
+                    self.data = result;
+                    self.current_position -= 1;
+                    Ok(())
+                }
+                _ => return Err(CommandErrors::InvalidOperationTypeOnData)
+            }
+        }
+        fn redo(&mut self,) -> Result<(), CommandErrors> {
+            if self.current_position >= self.commands.len() {
+                return Err(CommandErrors::NothingToRedo);
+            }
+            let last_operation = &self.commands[self.current_position];
+    
+            match last_operation {
+                Operations::Append(ref word) => {
+                    let result = Operations::append(&mut self.data, &word)?;
+                    self.data = result;
+                    self.current_position += 1;
+                    Ok(())
+                },
+                Operations::Truncate(amount, _) => {
+                    let (result, _) = Operations::cut(&mut self.data, *amount)?;
+                    self.data = result;
+                    self.current_position += 1;
+                    Ok(())
+                },
+                _ => return Err(CommandErrors::InvalidOperationTypeOnData)
+            }
     }
-}
+    }
+
+
