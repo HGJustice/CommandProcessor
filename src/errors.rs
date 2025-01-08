@@ -11,13 +11,3 @@ pub enum CommandErrors {
     NothingToUndo,
     NothingToRedo,
 }
-
-pub enum OperationErrors {
-    IntegerOverflowError,
-    IntergerUnderflowError,
-    CannotIncreaseByZero,
-    CannotDecreaseByZero,
-    InputStringIsEmpty,
-    CannotRemoveZeroCharacters,
-    AmountLargerThenString,
-}
