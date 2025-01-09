@@ -132,7 +132,25 @@ mod tests {
         processor.execute(Operations::Append(String::from("hi"))).unwrap();
         assert!(matches!(processor.redo(), Err(CommandErrors::NothingToRedo)));
     }
-
-
     
+    #[test]
+    fn test_command_history(){
+        let mut processor = CommandProcessor::new(5);
+        processor.execute(Operations::Increment(3)).unwrap();
+        processor.execute(Operations::Increment(4)).unwrap();
+        processor.execute(Operations::Increment(5)).unwrap();
+        processor.undo().unwrap();
+        processor.undo().unwrap();
+        assert_eq!(processor.current_position, 1);
+
+        processor.execute(Operations::Decrement(2)).unwrap();
+        assert_eq!(processor.commands.len(), 2);
+
+        processor.undo().unwrap();
+        processor.redo().unwrap();
+        processor.undo().unwrap();
+        assert_eq!(processor.current_position, 1);
+        assert_eq!(processor.data, 8);
+    }
+
 }
